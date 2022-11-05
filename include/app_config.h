@@ -1,6 +1,5 @@
 #ifndef APPCONFIG_H
 #define APPCONFIG_H
-#include "cJSON.h"
 
 #define MAX_CONFIG_LEN 80
 
