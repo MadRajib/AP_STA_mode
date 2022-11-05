@@ -29,7 +29,9 @@ int update_config();
 
 struct sta_data wifi_config_txt;
 
+/* API server */
 
+/* Endpoint handlers*/
 esp_err_t post_handler(httpd_req_t *req){
 
     char buf[128];
@@ -83,7 +85,9 @@ esp_err_t echo_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
-/* URI handler structure for POST /uri */
+
+/* Endpoints */
+
 httpd_uri_t uri_post = {
     .uri = "/config",
     .method = HTTP_POST,
@@ -95,6 +99,8 @@ httpd_uri_t uri_get = {
     .method = HTTP_GET,
     .handler = echo_handler,
     .user_ctx = NULL};
+
+/* Register Endpoints*/
 
 static httpd_handle_t start_webserver(void){
     httpd_handle_t server = NULL;
@@ -172,7 +178,8 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-/* End Wifi handles*/
+
+/* End Server code*/ 
 
 int init_config(){
     return read_config(&wifi_config_txt);
