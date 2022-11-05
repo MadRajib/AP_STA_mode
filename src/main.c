@@ -34,6 +34,13 @@ struct sta_data wifi_config_txt;
 
 led_strip_t *strip = NULL;
 
+struct color {
+    uint32_t R;
+    uint32_t G;
+    uint32_t B;
+} color_data;
+
+bool changed = false;
 void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
     // Clear LED strip (turn off all LEDs)
     ESP_ERROR_CHECK(strip->clear(strip, 100));
@@ -45,11 +52,28 @@ void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
 
     // Flush RGB values to LEDs
     ESP_ERROR_CHECK(strip->refresh(strip, 50));
-    vTaskDelay(pdMS_TO_TICKS(50));
-    strip->clear(strip, 50);
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
+TaskHandle_t Task1;
+void codeForTask1( void * pvParameters ){
+
+    while(1) {
+        while(!changed) vTaskDelay(pdMS_TO_TICKS(50));
+        // Clear LED strip (turn off all LEDs)
+        ESP_ERROR_CHECK(strip->clear(strip, 100));
+
+        for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
+            // Write RGB values to strip driver
+            ESP_ERROR_CHECK(strip->set_pixel(strip, j, color_data.R, color_data.G, color_data.B));
+        }
+
+        // Flush RGB values to LEDs
+        ESP_ERROR_CHECK(strip->refresh(strip, 50));
+        vTaskDelay(pdMS_TO_TICKS(200));
+        changed = false;
+    }
+}
 
 /* API server */
 
@@ -127,7 +151,11 @@ esp_err_t led_post_handler(httpd_req_t *req){
     long green = atol(cJSON_GetObjectItem(json, "G")->valuestring);
     long blue = atol(cJSON_GetObjectItem(json, "B")->valuestring);
 
-    set_led_strip(red, green, blue);
+    // set_led_strip(red, green, blue);
+    color_data.R = red;
+    color_data.G = green;
+    color_data.B = blue;
+    changed = true;
     printf("%ld %ld %ld \n", red,green, blue);
 
     const char resp[] = "Updated";
@@ -300,4 +328,14 @@ void app_main(void)
     if (!strip) {
         ESP_LOGE(TAG, "install WS2812 driver failed");
     }
+
+
+    xTaskCreatePinnedToCore(
+            codeForTask1,            /* Task function. */
+            "Task_1",                 /* name of task. */
+            1000,                    /* Stack size of task */
+            NULL,                     /* parameter of the task */
+            1,                        /* priority of the task */
+            &Task1,                   /* Task handle to keep track of created task */
+            1);                       /* Core */
 }
