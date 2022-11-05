@@ -66,12 +66,12 @@ esp_err_t post_handler(httpd_req_t *req){
         len
     );
     
-    const char resp[] = "URI POST Response";
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    cJSON_Delete(json);
-
     update_config();
 
+    const char resp[] = "Restarting Device!";
+    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+    cJSON_Delete(json);
+    esp_restart();
     return ESP_OK;
 }
 
