@@ -20,7 +20,6 @@
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 #define MODE_PIN 13
-#define SCRATCH_BUFSIZE  8192
 
 int update_config();
 
