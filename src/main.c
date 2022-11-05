@@ -101,8 +101,19 @@ void wifi_init(const int mode) {
     if(mode == WIFI_AP){
         esp_netif_create_default_wifi_ap();
     }else {
-        esp_netif_create_default_wifi_sta();
+        esp_netif_t *sta = esp_netif_create_default_wifi_sta();
+        esp_netif_dhcpc_stop(sta);
+        esp_netif_ip_info_t ip_info;
+        IP4_ADDR(&ip_info.ip, 192, 168, 1, 22);
+        IP4_ADDR(&ip_info.gw, 192, 168, 1, 1);
+        IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+        esp_netif_set_ip_info(sta, &ip_info);
+
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     }
+
+
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -140,6 +151,7 @@ void wifi_init(const int mode) {
             wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
             wifi_config.sta.pmf_cfg.capable = true;
             wifi_config.sta.pmf_cfg.required = false;
+
 
             ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
             ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
@@ -303,7 +315,6 @@ int update_config(){
 }
 
 void init(){
-
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
