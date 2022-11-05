@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "*.ipp": "c",
+        "*.tcc": "c",
+        "unordered_map": "c",
+        "fstream": "c",
+        "istream": "c",
+        "ostream": "c",
+        "sstream": "c",
+        "esp_log.h": "c",
+        "app_config.h": "c",
+        "stdio.h": "c"
+    }
+}
