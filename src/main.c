@@ -2,6 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -13,6 +14,7 @@
 #include "cJSON.h"
 #include <esp_http_server.h>
 #include "esp_http_client.h"
+#include "esp_sleep.h"
 #include "app_config.h"
 #include "wifi.h"
 #include "driver/rmt.h"
@@ -22,23 +24,23 @@
 
 #define MODE_PIN 13
 
-int update_config();
-
-struct sta_data wifi_config_txt;
-
-/* LED */
-
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
 #define EXAMPLE_CHASE_SPEED_MS (50)
 
+int update_config();
+
+
 led_strip_t *strip = NULL;
+struct sta_data wifi_config_txt;
 
 struct color {
     uint32_t R;
     uint32_t G;
     uint32_t B;
 } color_data;
+
+SemaphoreHandle_t xSemaphore = NULL;
 
 bool changed = false;
 void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
@@ -56,22 +58,24 @@ void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
 }
 
 TaskHandle_t Task1;
-void codeForTask1( void * pvParameters ){
+void updateLedTask( void * pvParameters ){
 
     while(1) {
-        while(!changed) vTaskDelay(pdMS_TO_TICKS(50));
-        // Clear LED strip (turn off all LEDs)
-        ESP_ERROR_CHECK(strip->clear(strip, 100));
+        /* Wait for the signal*/
+        if(xSemaphoreTake(xSemaphore, portMAX_DELAY)){
+            // Clear LED strip (turn off all LEDs)
+            ESP_ERROR_CHECK(strip->clear(strip, 100));
 
-        for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
-            // Write RGB values to strip driver
-            ESP_ERROR_CHECK(strip->set_pixel(strip, j, color_data.R, color_data.G, color_data.B));
+            for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
+                // Write RGB values to strip driver
+                ESP_ERROR_CHECK(strip->set_pixel(strip, j, color_data.R, color_data.G, color_data.B));
+            }
+
+            // Flush RGB values to LEDs
+            ESP_ERROR_CHECK(strip->refresh(strip, 50));
+            vTaskDelay(pdMS_TO_TICKS(200));
+            changed = false;
         }
-
-        // Flush RGB values to LEDs
-        ESP_ERROR_CHECK(strip->refresh(strip, 50));
-        vTaskDelay(pdMS_TO_TICKS(200));
-        changed = false;
     }
 }
 
@@ -155,13 +159,14 @@ esp_err_t led_post_handler(httpd_req_t *req){
     color_data.R = red;
     color_data.G = green;
     color_data.B = blue;
-    changed = true;
-    printf("%ld %ld %ld \n", red,green, blue);
+
+    /* Unlock the waiting task*/
+    xSemaphoreGive(xSemaphore);
 
     const char resp[] = "Updated";
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
     cJSON_Delete(json);
+
     return ESP_OK;
 }
 
@@ -275,6 +280,25 @@ int update_config(){
    return write_config(&wifi_config_txt);
 }
 
+
+void init_led(){
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(CONFIG_EXAMPLE_RMT_TX_GPIO, RMT_TX_CHANNEL);
+    // set counter clock to 40MHz
+    config.clk_div = 2;
+
+    ESP_ERROR_CHECK(rmt_config(&config));
+    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
+
+    // install ws2812 driver
+    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(CONFIG_EXAMPLE_STRIP_LED_NUMBER, (led_strip_dev_t)config.channel);
+    strip = led_strip_new_rmt_ws2812(&strip_config);
+    if (!strip) {
+        ESP_LOGE(TAG, "install WS2812 driver failed");
+    }
+
+}
+
+
 void init(){
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
@@ -295,6 +319,9 @@ void app_main(void)
     ESP_LOGI(TAG, ":%s\n", wifi_config_txt.psswd);
     ESP_LOGI(TAG, ":%s\n", wifi_config_txt.mqtt);
 
+    init_led();
+    xSemaphore = xSemaphoreCreateBinary();
+
     // //Check the status of mode pin
     gpio_set_direction(MODE_PIN, GPIO_MODE_INPUT);
     gpio_set_pull_mode(MODE_PIN, GPIO_PULLUP_ONLY);
@@ -308,34 +335,20 @@ void app_main(void)
         ESP_LOGI(STA_TAG, "ESP_WIFI_MODE_STA");
         wifi_init(WIFI_STA);
     }
-
+    
     static httpd_handle_t server = NULL;
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
     server = start_webserver();
 
-
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(CONFIG_EXAMPLE_RMT_TX_GPIO, RMT_TX_CHANNEL);
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-
-    // install ws2812 driver
-    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(CONFIG_EXAMPLE_STRIP_LED_NUMBER, (led_strip_dev_t)config.channel);
-    strip = led_strip_new_rmt_ws2812(&strip_config);
-    if (!strip) {
-        ESP_LOGE(TAG, "install WS2812 driver failed");
-    }
-
-
     xTaskCreatePinnedToCore(
-            codeForTask1,            /* Task function. */
+            updateLedTask,            /* Task function. */
             "Task_1",                 /* name of task. */
             1000,                    /* Stack size of task */
             NULL,                     /* parameter of the task */
             1,                        /* priority of the task */
             &Task1,                   /* Task handle to keep track of created task */
             1);                       /* Core */
+
+    // esp_light_sleep_start();
 }
