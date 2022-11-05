@@ -5,7 +5,6 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "driver/gpio.h"
@@ -16,6 +15,8 @@
 #include "esp_http_client.h"
 #include "app_config.h"
 #include "wifi.h"
+#include "driver/rmt.h"
+#include "led_strip.h"
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
@@ -24,6 +25,31 @@
 int update_config();
 
 struct sta_data wifi_config_txt;
+
+/* LED */
+
+#define RMT_TX_CHANNEL RMT_CHANNEL_0
+
+#define EXAMPLE_CHASE_SPEED_MS (50)
+
+led_strip_t *strip = NULL;
+
+void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
+    // Clear LED strip (turn off all LEDs)
+    ESP_ERROR_CHECK(strip->clear(strip, 100));
+
+    for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
+        // Write RGB values to strip driver
+        ESP_ERROR_CHECK(strip->set_pixel(strip, j, R, G, B));
+    }
+
+    // Flush RGB values to LEDs
+    ESP_ERROR_CHECK(strip->refresh(strip, 50));
+    vTaskDelay(pdMS_TO_TICKS(50));
+    strip->clear(strip, 50);
+    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
+}
+
 
 /* API server */
 
@@ -74,6 +100,7 @@ esp_err_t post_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+
 esp_err_t echo_handler(httpd_req_t *req){
     
     const char resp[] = "ECHO";
@@ -81,6 +108,34 @@ esp_err_t echo_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+esp_err_t led_post_handler(httpd_req_t *req){
+
+    char buf[128];
+    size_t recv_size = MIN(req->content_len, sizeof(buf));
+
+    int ret = httpd_req_recv(req, buf, recv_size);
+    if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+        httpd_resp_send_408(req);
+
+    cJSON *json = cJSON_Parse(buf);
+    if (!json){
+        ESP_LOGE(TAG, "Failed: %s", cJSON_GetErrorPtr());
+        return ESP_FAIL;
+    }
+
+    long red = atol(cJSON_GetObjectItem(json, "R")->valuestring);
+    long green = atol(cJSON_GetObjectItem(json, "G")->valuestring);
+    long blue = atol(cJSON_GetObjectItem(json, "B")->valuestring);
+
+    set_led_strip(red, green, blue);
+    printf("%ld %ld %ld \n", red,green, blue);
+
+    const char resp[] = "Updated";
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+    cJSON_Delete(json);
+    return ESP_OK;
+}
 
 /* Endpoints */
 
@@ -96,6 +151,12 @@ httpd_uri_t uri_get = {
     .handler = echo_handler,
     .user_ctx = NULL};
 
+httpd_uri_t led_post = {
+    .uri = "/led",
+    .method = HTTP_POST,
+    .handler = led_post_handler,
+    .user_ctx = NULL};
+
 /* Register Endpoints*/
 
 static httpd_handle_t start_webserver(void){
@@ -107,6 +168,7 @@ static httpd_handle_t start_webserver(void){
     if (httpd_start(&server, &config) == ESP_OK){
         httpd_register_uri_handler(server, &uri_post);
         httpd_register_uri_handler(server, &uri_get);
+        httpd_register_uri_handler(server, &led_post);
         return server;
     }
 
@@ -209,8 +271,6 @@ void app_main(void)
     gpio_set_direction(MODE_PIN, GPIO_MODE_INPUT);
     gpio_set_pull_mode(MODE_PIN, GPIO_PULLUP_ONLY);
 
-    ESP_LOGI(AP_TAG, "LEVEL %d",gpio_get_level(13));
-
     if (!gpio_get_level(13)){
         ESP_LOGI(AP_TAG, "ESP_WIFI_MODE_AP");
         wifi_init(WIFI_AP);
@@ -225,4 +285,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
     server = start_webserver();
+
+
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(CONFIG_EXAMPLE_RMT_TX_GPIO, RMT_TX_CHANNEL);
+    // set counter clock to 40MHz
+    config.clk_div = 2;
+
+    ESP_ERROR_CHECK(rmt_config(&config));
+    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
+
+    // install ws2812 driver
+    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(CONFIG_EXAMPLE_STRIP_LED_NUMBER, (led_strip_dev_t)config.channel);
+    strip = led_strip_new_rmt_ws2812(&strip_config);
+    if (!strip) {
+        ESP_LOGE(TAG, "install WS2812 driver failed");
+    }
 }
