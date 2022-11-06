@@ -7,8 +7,9 @@ var colorPicker = new iro.ColorPicker("#picker", {
 
 colorPicker.on('color:change', function(color) {
     // log the current color as a HEX string
-    post_data(hexToRgb(color.hexString));
+    post_data(hexToRgb(color.hexString), document.getElementById("patterns").value.toLowerCase());
 });
+
 
 let last_color  = {r:0,g:0,b:0};
 function hexToRgb(hex) {
@@ -29,15 +30,15 @@ function distance(last, current){
     let sm = Math.abs(last.r - current.r) + Math.abs(last.g - current.g) + Math.abs(last.b - current.b)
     return sm/3.0;  
 }
-function post_data(data) {
+function post_data(data, pattern) {
     console.log(distance(last_color,data));
-    if(distance(last_color,data) == 0 ) 
-        return;
+
     last_color = data;
     const payload = {
         "R" : data.r.toString(),
         "G" : data.g.toString(),
-        "B" : data.b.toString(),    
+        "B" : data.b.toString(),
+        "pattern":pattern,    
     };
     console.log(payload);
       fetch("http://192.168.1.22:80/led",{
@@ -58,3 +59,10 @@ function post_data(data) {
         console.log(err);
       });
 }
+
+function setPattern(event){
+  var x = document.getElementById("patterns");
+  post_data(hexToRgb(colorPicker.color.hexString), x.value.toLowerCase());
+}
+
+document.getElementById("patterns").addEventListener("change", setPattern);

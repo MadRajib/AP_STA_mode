@@ -19,10 +19,11 @@
 #include "wifi.h"
 #include "driver/rmt.h"
 #include "led_strip.h"
+#include "pattern.h"
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-#define MODE_PIN 13
+#define MODE_PIN 18
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
@@ -34,15 +35,9 @@ int update_config();
 led_strip_t *strip = NULL;
 struct sta_data wifi_config_txt;
 
-struct color {
-    uint32_t R;
-    uint32_t G;
-    uint32_t B;
-} color_data;
-
 SemaphoreHandle_t xSemaphore = NULL;
+SemaphoreHandle_t xSemExitPattern = NULL;
 
-bool changed = false;
 void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
     // Clear LED strip (turn off all LEDs)
     ESP_ERROR_CHECK(strip->clear(strip, 100));
@@ -57,24 +52,25 @@ void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
     vTaskDelay(pdMS_TO_TICKS(200));
 }
 
-TaskHandle_t Task1;
-void updateLedTask( void * pvParameters ){
+enum PATTRERNS{RAINBOW, STATIC, CLEAR, NONE};
+int show_pattern = NONE;
 
+TaskHandle_t Task2;
+void renderLedTask( void * pvParameters ){
     while(1) {
-        /* Wait for the signal*/
-        if(xSemaphoreTake(xSemaphore, portMAX_DELAY)){
-            // Clear LED strip (turn off all LEDs)
-            ESP_ERROR_CHECK(strip->clear(strip, 100));
-
-            for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
-                // Write RGB values to strip driver
-                ESP_ERROR_CHECK(strip->set_pixel(strip, j, color_data.R, color_data.G, color_data.B));
-            }
-
-            // Flush RGB values to LEDs
-            ESP_ERROR_CHECK(strip->refresh(strip, 50));
-            vTaskDelay(pdMS_TO_TICKS(200));
-            changed = false;
+        switch(show_pattern){
+            case RAINBOW:
+                show_rainbow_pattern(strip);
+                break;
+            case CLEAR:
+                ESP_ERROR_CHECK(strip->clear(strip, 100));
+                break;
+            case STATIC:
+                show_static_pattern(strip);
+                show_pattern = NONE;
+                break;
+            default:
+                vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
 }
@@ -154,11 +150,17 @@ esp_err_t led_post_handler(httpd_req_t *req){
     long red = atol(cJSON_GetObjectItem(json, "R")->valuestring);
     long green = atol(cJSON_GetObjectItem(json, "G")->valuestring);
     long blue = atol(cJSON_GetObjectItem(json, "B")->valuestring);
+    char *pattern = cJSON_GetObjectItem(json, "pattern")->valuestring;
 
     // set_led_strip(red, green, blue);
     color_data.R = red;
     color_data.G = green;
     color_data.B = blue;
+
+    if(strcmp(pattern, "rainbow") == NULL)
+        show_pattern = RAINBOW;
+    else if(strcmp(pattern, "static") == NULL)
+        show_pattern = STATIC;
 
     /* Unlock the waiting task*/
     xSemaphoreGive(xSemaphore);
@@ -326,7 +328,7 @@ void app_main(void)
     gpio_set_direction(MODE_PIN, GPIO_MODE_INPUT);
     gpio_set_pull_mode(MODE_PIN, GPIO_PULLUP_ONLY);
 
-    if (!gpio_get_level(13)){
+    if (!gpio_get_level(MODE_PIN)){
         ESP_LOGI(AP_TAG, "ESP_WIFI_MODE_AP");
         wifi_init(WIFI_AP);
     }
@@ -342,13 +344,11 @@ void app_main(void)
     server = start_webserver();
 
     xTaskCreatePinnedToCore(
-            updateLedTask,            /* Task function. */
-            "Task_1",                 /* name of task. */
+            renderLedTask,            /* Task function. */
+            "Task_2",                 /* name of task. */
             1000,                    /* Stack size of task */
             NULL,                     /* parameter of the task */
             1,                        /* priority of the task */
-            &Task1,                   /* Task handle to keep track of created task */
-            1);                       /* Core */
-
-    // esp_light_sleep_start();
+            &Task2,                   /* Task handle to keep track of created task */
+            1); 
 }

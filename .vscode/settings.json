@@ -9,7 +9,9 @@
         "sstream": "c",
         "esp_log.h": "c",
         "app_config.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "pattern.h": "c",
+        "esp_system.h": "c"
     },
     "liveServer.settings.port": 5501
 }
