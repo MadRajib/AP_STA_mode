@@ -1,29 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Color Picker</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Picker</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="font-awesome.min.css">
 </head>
+
 <body>
   <div class="card center">
-    <div id="picker"></div>
-    <div class="center">
-      <div class="container label_text">
-        <label for="patterns">Choose a Pattern:</label>
-        <select name="pattern" id="patterns">
-          <option value="static">Static</option>
-          <option value="rainbow">Rainbow</option>
-        </select>
+    <div class="power-btn">
+      <i class="fa fa-gear settings" id="settings-btn" style="font-size:36px;"></i>
+      <i class="fa fa-power-off power" id="power-btn" style="font-size:36px"></i>
+    </div>
+    <div id="div-picker">
+      <div id="picker"></div>
+      <div class="center">
+        <div class="container label_text">
+          <label for="patterns">Choose a Pattern:</label>
+          <select name="pattern" id="patterns">
+            <option value="static">Static</option>
+            <option value="rainbow">Rainbow</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="config">
+      <div class="center">
+        <div class="container">
+          <form id="config_form">
+            <label for="ssid">SSID:</label><br>
+            <input type="text" id="ssid" name="ssid"><br>
+            <label for="psswd">Password:</label><br>
+            <input type="password" id="psswd" name="psswd"><br>
+            <label for="server">Server:</label><br>
+            <input type="text" id="server" name="server"><br><br>
+            <button type="submit" value="Submit">Save Configs</button>
+          </form> 
+        </div>
       </div>
     </div>
 
   </div>
-  
-    
-    <script src="js/iro.min.js"></script>
-    <script src="js/app.js"></script>
+
+
+  <script src="js/iro.min.js"></script>
+  <script src="js/app.js"></script>
 </body>
+
 </html>

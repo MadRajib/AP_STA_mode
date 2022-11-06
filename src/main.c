@@ -23,7 +23,7 @@
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
-#define MODE_PIN 18
+#define MODE_PIN 4
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 
