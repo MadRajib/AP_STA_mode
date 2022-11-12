@@ -79,15 +79,13 @@ void led_strip_hsv2rgb(uint32_t h, uint32_t s, uint32_t v, uint32_t *r, uint32_t
 }
 
 void show_static_pattern(led_strip_t *strip){
-    // Clear LED strip (turn off all LEDs)
-    // ESP_ERROR_CHECK(strip->clear(strip, 100));
 
     for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
         // Write RGB values to strip driver
         ESP_ERROR_CHECK(strip->set_pixel(strip, j, color_data.R, color_data.G, color_data.B));
     }
 
-        // Flush RGB values to LEDs
+    // Flush RGB values to LEDs
     ESP_ERROR_CHECK(strip->refresh(strip, 50));
     vTaskDelay(pdMS_TO_TICKS(200));
 }
