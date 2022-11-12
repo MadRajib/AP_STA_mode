@@ -22,35 +22,14 @@
 #include "pattern.h"
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
 #define MODE_PIN 4
-
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
-
 #define EXAMPLE_CHASE_SPEED_MS (50)
 
 int update_config();
 
-
 led_strip_t *strip = NULL;
 struct sta_data wifi_config_txt;
-
-SemaphoreHandle_t xSemaphore = NULL;
-SemaphoreHandle_t xSemExitPattern = NULL;
-
-void set_led_strip(uint32_t R, uint32_t G, uint32_t B){
-    // Clear LED strip (turn off all LEDs)
-    ESP_ERROR_CHECK(strip->clear(strip, 100));
-
-    for (int j = 0; j < CONFIG_EXAMPLE_STRIP_LED_NUMBER; j++) {        
-        // Write RGB values to strip driver
-        ESP_ERROR_CHECK(strip->set_pixel(strip, j, R, G, B));
-    }
-
-    // Flush RGB values to LEDs
-    ESP_ERROR_CHECK(strip->refresh(strip, 50));
-    vTaskDelay(pdMS_TO_TICKS(200));
-}
 
 enum PATTRERNS{RAINBOW, STATIC, CLEAR, NONE};
 int show_pattern = NONE;
@@ -152,7 +131,6 @@ esp_err_t led_post_handler(httpd_req_t *req){
     long blue = atol(cJSON_GetObjectItem(json, "B")->valuestring);
     char *pattern = cJSON_GetObjectItem(json, "pattern")->valuestring;
 
-    // set_led_strip(red, green, blue);
     color_data.R = red;
     color_data.G = green;
     color_data.B = blue;
@@ -161,9 +139,6 @@ esp_err_t led_post_handler(httpd_req_t *req){
         show_pattern = RAINBOW;
     else if(strcmp(pattern, "static") == NULL)
         show_pattern = STATIC;
-
-    /* Unlock the waiting task*/
-    xSemaphoreGive(xSemaphore);
 
     const char resp[] = "Updated";
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
@@ -322,7 +297,6 @@ void app_main(void)
     ESP_LOGI(TAG, ":%s\n", wifi_config_txt.mqtt);
 
     init_led();
-    xSemaphore = xSemaphoreCreateBinary();
 
     // //Check the status of mode pin
     gpio_set_direction(MODE_PIN, GPIO_MODE_INPUT);

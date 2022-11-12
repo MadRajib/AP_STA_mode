@@ -5,7 +5,6 @@
 
 #define EXAMPLE_CHASE_SPEED_MS (10)
 
-
 void int_rainbow() {
     RainBow_Config.red = 0;
     RainBow_Config.green = 0;
