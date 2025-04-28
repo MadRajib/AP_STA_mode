@@ -41,7 +41,7 @@ function post_data(data, pattern) {
         "pattern":pattern,    
     };
     console.log(payload);
-      fetch("http://192.168.1.22:80/led",{
+      fetch("http://esp_moon.local/led",{
         method:'POST',
         mode: 'no-cors',
         headers: {
@@ -96,26 +96,6 @@ function logSubmit(event) {
     "ssid" : document.getElementById("ssid").value.toString(),
     "psswd" :document.getElementById("psswd").value.toString(),    
 };
-
-console.log(payload);
-  fetch("http://192.168.4.1/config",{
-    method:'POST',
-    mode: 'no-cors',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  }).then(function(res) {
-    // return res.json()
-    return res;
-  })
-  .then(function(data) {
-    // console.log(data);
-  })
-  .catch(err => {
-    console.log(err);
-  });
-}
 
 const form = document.getElementById('config_form');
 form.addEventListener('submit', logSubmit);
