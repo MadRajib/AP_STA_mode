@@ -88,14 +88,5 @@ function settings(){
 
 document.getElementById("settings-btn").addEventListener("click", settings);
 
-function logSubmit(event) {
-  event.preventDefault();
-
-  const payload = {
-    "mqtt" : document.getElementById("server").value.toString(),
-    "ssid" : document.getElementById("ssid").value.toString(),
-    "psswd" :document.getElementById("psswd").value.toString(),    
-};
-
 const form = document.getElementById('config_form');
 form.addEventListener('submit', logSubmit);
